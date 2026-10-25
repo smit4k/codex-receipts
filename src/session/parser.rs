@@ -1,6 +1,8 @@
 use std::{
+    collections::HashSet,
     fs::File,
     io::{BufRead, BufReader},
+    ops::Range,
     path::Path,
 };
 
@@ -16,6 +18,7 @@ pub struct Metadata {
     pub id: String,
     pub cwd: String,
     pub timestamp: DateTime<Utc>,
+    pub forked_from_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -55,13 +58,35 @@ pub fn parse(path: &Path) -> Result<Receipt> {
     parse_reader(open(path)?).with_context(|| format!("parsing {}", path.display()))
 }
 
-pub fn parse_reader(mut reader: impl BufRead) -> Result<Receipt> {
+pub fn parse_reader(reader: impl BufRead) -> Result<Receipt> {
+    parse_reader_in_period(reader, None)?.context("no session metadata found")
+}
+
+pub fn parse_in_period(path: &Path, range: &Range<DateTime<Utc>>) -> Result<Option<Receipt>> {
+    parse_reader_in_period(open(path)?, Some(range))
+        .with_context(|| format!("parsing {}", path.display()))
+}
+
+pub fn parse_reader_in_period(
+    mut reader: impl BufRead,
+    range: Option<&Range<DateTime<Utc>>>,
+) -> Result<Option<Receipt>> {
     let mut receipt: Option<Receipt> = None;
+    let mut session_ids = HashSet::new();
     let mut current_model = "unknown".to_owned();
     let mut previous = Tokens::default();
     let mut active_start = None;
     let mut active = Duration::zero();
     let mut saw_active = false;
+    let mut saw_event = false;
+    let mut saw_usage = false;
+    let mut incomplete_usage = false;
+    let clipped_duration = |start: DateTime<Utc>, end: DateTime<Utc>| {
+        let (start, end) = range.map_or((start, end), |range| {
+            (start.max(range.start), end.min(range.end))
+        });
+        (end - start).max(Duration::zero())
+    };
     let mut line = String::new();
     let mut line_number = 0;
     loop {
@@ -88,16 +113,24 @@ pub fn parse_reader(mut reader: impl BufRead) -> Result<Receipt> {
             }
         };
         if event.kind == "session_meta" {
-            ensure!(
-                receipt.is_none(),
-                "duplicate session metadata at line {line_number}"
-            );
             let meta: Metadata =
                 serde_json::from_value(event.payload).context("invalid session metadata")?;
             ensure!(!meta.id.trim().is_empty(), "empty session ID");
+            if receipt.is_some() {
+                ensure!(
+                    session_ids.contains(&meta.id),
+                    "unrelated session metadata at line {line_number}"
+                );
+                session_ids.extend(meta.forked_from_id);
+                continue;
+            }
+            // Forked rollouts can embed ancestor headers; the first header owns the receipt.
+            session_ids.insert(meta.id.clone());
+            session_ids.extend(meta.forked_from_id);
             let project = project_name(&meta.cwd).to_owned();
             receipt = Some(Receipt {
                 session_id: meta.id,
+                session_count: None,
                 project,
                 started_at: meta.timestamp,
                 ended_at: meta.timestamp,
@@ -106,6 +139,7 @@ pub fn parse_reader(mut reader: impl BufRead) -> Result<Receipt> {
                 total: None,
                 warnings: Vec::new(),
             });
+            saw_event = range.is_none_or(|range| range.contains(&meta.timestamp));
             continue;
         }
         let r = receipt
@@ -114,6 +148,9 @@ pub fn parse_reader(mut reader: impl BufRead) -> Result<Receipt> {
         if let Some(time) = event.timestamp {
             r.ended_at = r.ended_at.max(time);
         }
+        let in_period =
+            range.is_none_or(|range| event.timestamp.is_some_and(|time| range.contains(&time)));
+        saw_event |= in_period;
         if event.kind == "turn_context" {
             current_model = event
                 .payload
@@ -137,13 +174,15 @@ pub fn parse_reader(mut reader: impl BufRead) -> Result<Receipt> {
             Some("task_started" | "turn_started") => {
                 if let Some(time) = event.timestamp {
                     active_start.get_or_insert(time.max(r.started_at));
-                    saw_active = true;
+                    saw_active |= in_period;
                 }
             }
             Some("task_complete" | "turn_complete" | "turn_aborted") => {
                 if let (Some(time), Some(start)) = (event.timestamp, active_start) {
                     active_start = None;
-                    active += (time - start).max(Duration::zero());
+                    let duration = clipped_duration(start, time);
+                    active += duration;
+                    saw_active |= in_period || duration > Duration::zero();
                 }
             }
             Some("token_count") => {
@@ -159,35 +198,50 @@ pub fn parse_reader(mut reader: impl BufRead) -> Result<Receipt> {
                 total
                     .validate()
                     .with_context(|| format!("invalid token counts at line {line_number}"))?;
-                let delta = total.delta(previous).filter(|d| d.validate().is_ok());
-                if let Some(delta) = delta {
-                    if delta != Tokens::default() {
-                        if let Some(usage) = r
-                            .models
-                            .iter_mut()
-                            .find(|usage| usage.model == current_model)
-                        {
-                            usage.tokens.add(delta)?;
-                        } else {
-                            r.models.push(ModelUsage {
-                                model: current_model.clone(),
-                                tokens: delta,
-                            });
+                if !in_period {
+                    if range.is_some() && event.timestamp.is_none() {
+                        incomplete_usage = true;
+                        if !r.warnings.iter().any(|w| w.starts_with("Untimed")) {
+                            r.warnings
+                                .push("Untimed usage cannot be assigned to the period".into());
                         }
+                    }
+                    previous = total;
+                    saw_usage = true;
+                    continue;
+                }
+                let delta = total.delta(previous).filter(|d| d.validate().is_ok());
+                if range.is_some_and(|range| r.started_at < range.start) && !saw_usage {
+                    incomplete_usage = true;
+                    r.warnings
+                        .push("No usage baseline at period start; total unavailable".into());
+                } else if let Some(delta) = delta {
+                    if range.is_some() {
+                        r.total.get_or_insert_default().add(delta)?;
+                    }
+                    if delta != Tokens::default() {
+                        r.add_usage(&current_model, delta)?;
                     }
                 } else {
                     // Counter corrections cannot reliably be attributed across models.
-                    r.models = vec![ModelUsage {
-                        model: "unknown (counter correction)".into(),
-                        tokens: total,
-                    }];
+                    if range.is_some() {
+                        incomplete_usage = true;
+                    } else {
+                        r.models = vec![ModelUsage {
+                            model: "unknown (counter correction)".into(),
+                            tokens: total,
+                        }];
+                    }
                     if !r.warnings.iter().any(|w| w.starts_with("Usage counters")) {
                         r.warnings
                             .push("Usage counters corrected; model attribution unavailable".into());
                     }
                 }
                 previous = total;
-                r.total = Some(total);
+                saw_usage = true;
+                if range.is_none() {
+                    r.total = Some(total);
+                }
             }
             _ => {}
         }
@@ -196,15 +250,34 @@ pub fn parse_reader(mut reader: impl BufRead) -> Result<Receipt> {
         bail!("no session metadata found");
     };
     if let Some(start) = active_start {
-        active += (r.ended_at - start).max(Duration::zero());
-        r.warnings
-            .push("Turn still open; receipt is a snapshot".into());
+        let duration = clipped_duration(start, r.ended_at);
+        active += duration;
+        saw_active |= duration > Duration::zero();
+        if range.is_none_or(|range| start < range.end && r.ended_at >= range.start) {
+            r.warnings
+                .push("Turn still open; receipt is a snapshot".into());
+        }
+    }
+    if !saw_event && !saw_active {
+        return Ok(None);
     }
     if saw_active {
         r.active_duration = Some(active);
     }
-    if r.total.is_none() {
+    if r.total.is_none() && !incomplete_usage {
         r.warnings.push("No token usage recorded".into());
     }
-    Ok(r)
+    if incomplete_usage {
+        r.total = None;
+    }
+    // Safety auto-review usage is free and does not belong on the receipt.
+    if let Some(index) = r
+        .models
+        .iter()
+        .position(|usage| usage.model == "codex-auto-review")
+    {
+        let excluded = r.models.remove(index).tokens;
+        r.total = r.total.and_then(|total| total.delta(excluded));
+    }
+    Ok(Some(r))
 }

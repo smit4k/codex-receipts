@@ -28,12 +28,31 @@ pub fn render(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> String {
     let project = escape(&receipt.project);
     let session = escape(&receipt.session_id);
     let date = receipt.started_at.format("%Y-%m-%d %H:%M:%S UTC");
+    let (identity, receipt_label, elapsed_label) = if let Some(count) = receipt.session_count {
+        let end = receipt.ended_at.format("%Y-%m-%d %H:%M:%S UTC");
+        let suffix = if count == 1 { "" } else { "s" };
+        (
+            format!(
+                "<p>All projects</p>\n<p class=\"session-label\">PERIOD RECEIPT</p>\n<p class=\"session\">{count} session{suffix}</p>\n<time>{date}</time><p>to</p><time>{end}</time>"
+            ),
+            "Codex period receipt",
+            "Period",
+        )
+    } else {
+        (
+            format!(
+                "<p>Project: {project}</p>\n<p class=\"session-label\">SESSION RECEIPT</p>\n<p class=\"session\">{session}</p>\n<time>{date}</time>"
+            ),
+            "Codex session receipt",
+            "Elapsed",
+        )
+    };
     let elapsed = duration(receipt.ended_at - receipt.started_at);
     let active = receipt
         .active_duration
         .map(duration)
         .unwrap_or_else(|| "N/A".into());
-    let total = money(pricing.total(receipt));
+    let total = pricing.total_display(receipt);
     let total_size = if total.len() > 12 { 14 } else { 24 };
     let total_print_size = if total.len() > 12 {
         if compact { 11 } else { 16 }
@@ -61,11 +80,17 @@ pub fn render(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> String {
         items.push_str("</dl></section>\n");
     }
     if receipt.total.is_none() {
-        items.push_str("<p class=\"empty\">No token usage recorded.</p>");
+        items.push_str(if receipt.session_count.is_some() {
+            "<p class=\"empty\">Usage incomplete or unavailable.</p>"
+        } else {
+            "<p class=\"empty\">No token usage recorded.</p>"
+        });
     }
     let mut notes = String::new();
-    if pricing.total(receipt).is_none() && receipt.total.is_some() {
-        notes.push_str("<p>N/A: unknown model or unpriced usage.</p>");
+    if pricing.is_partial(receipt) {
+        notes.push_str(
+            "<p>* Partial total: known costs.</p><p>N/A: unknown model or unpriced usage.</p>",
+        );
     }
     for warning in &receipt.warnings {
         notes.push_str(&format!("<p>{}</p>", escape(warning)));
@@ -190,15 +215,12 @@ footer {{ break-inside: avoid; }}
 </style>
 </head>
 <body>
-<main class="receipt" aria-label="Codex session receipt">
+<main class="receipt" aria-label="{receipt_label}">
 <header>
 {mark}
 <h1>CODEX / RECEIPTS</h1>
 <div class="identity">
-<p>Project: {project}</p>
-<p class="session-label">SESSION RECEIPT</p>
-<p class="session">{session}</p>
-<time>{date}</time>
+{identity}
 </div>
 </header>
 {items}
@@ -207,7 +229,7 @@ footer {{ break-inside: avoid; }}
 <div class="sum"><span>TOTAL</span><span class="amount">{total}</span></div>
 </section>
 <footer>
-<dl class="meta"><div><dt>Elapsed</dt><dd>{elapsed}</dd></div><div><dt>Active turns</dt><dd>{active}</dd></div></dl>
+<dl class="meta"><div><dt>{elapsed_label}</dt><dd>{elapsed}</dd></div><div><dt>Active turns</dt><dd>{active}</dd></div></dl>
 <p class="cashier">CASHIER: Codex</p>
 <p class="thanks">Thank you for building!</p>
 <div class="fine-print" title="{basis}">

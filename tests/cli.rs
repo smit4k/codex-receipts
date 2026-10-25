@@ -281,6 +281,176 @@ fn real_terminal_respects_no_color_and_dumb_terminal_modes() {
     }
 }
 
+fn session_days_ago(days: i64, id: &str) -> String {
+    use chrono::{DateTime, Duration, Utc};
+    let start = Utc::now() - Duration::days(days);
+    let original_start: DateTime<Utc> = "2026-10-24T19:00:00Z".parse().unwrap();
+    let mut log = String::new();
+    for line in fs::read_to_string(fixture()).unwrap().lines() {
+        let mut event: serde_json::Value = serde_json::from_str(line).unwrap();
+        let time: DateTime<Utc> = event["timestamp"].as_str().unwrap().parse().unwrap();
+        event["timestamp"] = (start + (time - original_start)).to_rfc3339().into();
+        if event["type"] == "session_meta" {
+            event["payload"]["timestamp"] = start.to_rfc3339().into();
+            event["payload"]["id"] = id.into();
+        }
+        log.push_str(&event.to_string());
+        log.push('\n');
+    }
+    log
+}
+
+#[test]
+fn period_receipts_combine_models_and_resumed_sessions_in_text_and_html() {
+    let dir = Temp::new();
+    let root = dir.0.to_str().unwrap();
+    for (name, days, model) in [
+        ("recent", 1, "gpt-5.3-codex"),
+        ("second", 2, "gpt-5.3-codex"),
+        ("safety", 1, "codex-auto-review"),
+        ("month-only", 10, "gpt-6.1-sol"),
+        ("old", 40, "gpt-5.3-codex"),
+        ("future", -2, "gpt-5.3-codex"),
+    ] {
+        let log = session_days_ago(days, name).replace("gpt-5.3-codex", model);
+        let (extension, bytes) = if days == 10 {
+            (
+                "jsonl.zst",
+                zstd::stream::encode_all(log.as_bytes(), 0).unwrap(),
+            )
+        } else {
+            ("jsonl", log.into_bytes())
+        };
+        fs::write(dir.0.join(format!("{name}.{extension}")), bytes).unwrap();
+    }
+    let old = session_days_ago(40, "resumed");
+    let recent = session_days_ago(1, "resumed");
+    let baseline = old
+        .lines()
+        .find(|line| line.contains("token_count"))
+        .unwrap();
+    let resumed = format!(
+        "{}\n{baseline}\n{}\n",
+        old.lines().next().unwrap(),
+        recent.lines().skip(1).collect::<Vec<_>>().join("\n")
+    );
+    fs::write(dir.0.join("resumed.jsonl"), resumed).unwrap();
+
+    for (period, sessions) in [("week", 4), ("month", 5)] {
+        for (paper, columns) in [("58", 32), ("80", 42)] {
+            let output = cli(&["--sessions-dir", root, "--period", period, "--paper", paper]);
+            ok(&output);
+            let text = String::from_utf8(output.stdout).unwrap();
+            assert!(text.contains("PERIOD RECEIPT"));
+            assert!(text.contains(&format!("{sessions} sessions")));
+            assert!(text.contains("43,873"));
+            assert!(text.contains("83,800"));
+            assert_eq!(text.matches("GPT-5.3 Codex").count(), 1);
+            assert_eq!(text.contains("GPT-6.1 Sol"), period == "month");
+            assert!(
+                text.contains(if period == "week" { "$0.61" } else { "$0.76" }),
+                "{text}"
+            );
+            assert!(!text.contains("N/A"));
+            assert!(!text.contains("codex-auto-review"));
+            assert!(text.lines().all(|line| line.chars().count() <= columns));
+            assert!(!text.contains("Synthetic private prompt"));
+            assert!(!text.contains("/home/example"));
+            let output = cli(&[
+                "export",
+                "--sessions-dir",
+                root,
+                "--period",
+                period,
+                "--paper",
+                paper,
+                "--format",
+                "html",
+                "-o",
+                "-",
+            ]);
+            ok(&output);
+            let page = String::from_utf8(output.stdout).unwrap();
+            assert!(page.contains("Codex period receipt"));
+            assert!(page.contains(&format!("{sessions} sessions")));
+            assert!(page.contains("<dd>43,873</dd>"));
+            assert!(page.contains("<dd>83,800</dd>"));
+            assert_eq!(page.matches("title=\"gpt-5.3-codex\"").count(), 1);
+            assert!(!page.contains("codex-auto-review"));
+        }
+    }
+}
+
+#[test]
+fn period_receipts_refuse_empty_ranges_duplicates_and_corrupt_rollouts() {
+    let dir = Temp::new();
+    let root = dir.0.to_str().unwrap();
+    let output = cli(&["--sessions-dir", root, "--period", "week"]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("no Codex session activity"));
+    let log = session_days_ago(1, "duplicate");
+    fs::write(dir.0.join("one.jsonl"), &log).unwrap();
+    fs::write(dir.0.join("two.jsonl"), &log).unwrap();
+    let output = cli(&["--sessions-dir", root, "--period", "week"]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("duplicate session ID"));
+    fs::write(
+        dir.0.join("two.jsonl"),
+        format!("{}{{invalid}}\n", log.replace("duplicate", "corrupt")),
+    )
+    .unwrap();
+    let output = cli(&["--sessions-dir", root, "--period", "week"]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("invalid JSON at line"));
+}
+
+#[test]
+fn period_receipts_show_known_costs_with_a_star_for_partial_totals() {
+    let dir = Temp::new();
+    let root = dir.0.to_str().unwrap();
+    fs::write(dir.0.join("known.jsonl"), session_days_ago(1, "known")).unwrap();
+    for log in [
+        session_days_ago(2, "unknown").replace("gpt-5.3-codex", "unknown-model"),
+        format!(
+            "{}\n",
+            session_days_ago(2, "missing").lines().next().unwrap()
+        ),
+    ] {
+        fs::write(dir.0.join("other.jsonl"), log).unwrap();
+        let output = cli(&["--sessions-dir", root, "--period", "week"]);
+        ok(&output);
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            text.lines()
+                .any(|line| line.starts_with("TOTAL (API EST.)") && line.ends_with("$0.20*"))
+        );
+        assert!(text.contains("* Partial total: known costs"));
+        assert!(text.contains("2 sessions"));
+    }
+}
+
+#[test]
+fn forked_rollouts_with_parent_headers_work_for_single_and_period_receipts() {
+    let dir = Temp::new();
+    let parent = session_days_ago(1, "parent-session");
+    let mut child: serde_json::Value =
+        serde_json::from_str(parent.lines().next().unwrap()).unwrap();
+    child["payload"]["id"] = "child-session".into();
+    child["payload"]["forked_from_id"] = "parent-session".into();
+    fs::write(dir.0.join("fork.jsonl"), format!("{child}\n{parent}")).unwrap();
+    let root = dir.0.to_str().unwrap();
+    let output = cli(&["--sessions-dir", root, "--session", "child-session"]);
+    ok(&output);
+    assert!(String::from_utf8_lossy(&output.stdout).contains("child-session"));
+    for period in ["week", "month"] {
+        let output = cli(&["--sessions-dir", root, "--period", period]);
+        ok(&output);
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(text.contains("1 session"));
+        assert!(text.contains("$0.20"));
+    }
+}
+
 #[test]
 fn compressed_rollouts_are_discovered_and_export_like_plain_rollouts() {
     let dir = Temp::new();
@@ -334,5 +504,55 @@ fn corrupt_or_truncated_compressed_rollouts_fail_with_the_file_path() {
         assert!(!output.status.success());
         assert!(output.stdout.is_empty());
         assert!(String::from_utf8_lossy(&output.stderr).contains("broken.jsonl.zst"));
+    }
+}
+
+#[test]
+fn default_periods_include_archived_sessions_and_custom_directories_stay_scoped() {
+    let dir = Temp::new();
+    let active = dir.0.join("sessions");
+    let archived = dir.0.join("archived_sessions");
+    fs::create_dir(&active).unwrap();
+    fs::create_dir(&archived).unwrap();
+    fs::write(active.join("recent.jsonl"), session_days_ago(1, "recent")).unwrap();
+    let log = session_days_ago(10, "archived");
+    fs::write(
+        archived.join("old.jsonl.zst"),
+        zstd::stream::encode_all(log.as_bytes(), 0).unwrap(),
+    )
+    .unwrap();
+    for (period, count) in [("week", 1), ("month", 2)] {
+        let output = Command::new(env!("CARGO_BIN_EXE_codex-receipts"))
+            .env("CODEX_HOME", &dir.0)
+            .args(["--period", period])
+            .output()
+            .unwrap();
+        ok(&output);
+        assert!(String::from_utf8_lossy(&output.stdout).contains(&format!("{count} session")));
+    }
+    let output = cli(&[
+        "--sessions-dir",
+        active.to_str().unwrap(),
+        "--period",
+        "month",
+    ]);
+    ok(&output);
+    assert!(String::from_utf8_lossy(&output.stdout).contains("1 session"));
+}
+
+#[test]
+fn periods_reject_conflicting_selectors_and_unrelated_commands() {
+    for args in [
+        vec!["--period", "week", "--latest"],
+        vec!["--period", "week", "--session", "id"],
+        vec!["--period", "month", "--file", "rollout.jsonl"],
+        vec!["--period", "month", "show", "id"],
+        vec!["--period", "week", "sessions"],
+        vec!["hook", "--period", "month", "--output-dir", "."],
+        vec!["--period", "year"],
+    ] {
+        let output = cli(&args);
+        assert!(!output.status.success(), "unexpected success: {args:?}");
+        assert!(output.stdout.is_empty());
     }
 }

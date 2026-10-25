@@ -1,6 +1,6 @@
 # codex-receipts
 
-Turn a local Codex coding session into a thermal-style receipt: plain text or a self-contained, print-ready HTML file. One Rust binary, no service or API key.
+Turn local Codex coding sessions into a thermal-style receipt: one session, the past week, or the past month, as plain text or a self-contained, print-ready HTML file. One Rust binary, no service or API key.
 
 ## Install and run
 
@@ -19,13 +19,23 @@ codex-receipts show 019e0000-0000-7000-8000-000000000001
 codex-receipts --session 019e0000
 codex-receipts --file /path/to/rollout.jsonl
 codex-receipts --sessions-dir /path/to/sessions
+codex-receipts --period week
+codex-receipts --period month
 
 codex-receipts export --format html -o receipt.html
 codex-receipts export --format text -o receipt.txt
+codex-receipts export --period week --format html -o week.html
+codex-receipts export --period month --format text -o month.txt
 codex-receipts --help
 ```
 
 Session prefixes must be unique; exact IDs take precedence. Selection and `--paper` options work before or after the subcommand. Exports never overwrite files. `-o -` writes to stdout. All displayed dates are UTC.
+
+`--period week` combines activity from the trailing 7 days; `--period month` goes back one calendar month from the current UTC time, clamping to the last day of a shorter month. These are rolling windows, not the previous calendar week or month. Period receipts show the UTC start and end, the number of sessions with recorded activity, and combined token counts and costs grouped by model. Both paper widths and export formats work. Period selection cannot be combined with `--file`, `--session`, `--latest`, or the `show`, `sessions`, and `hook` commands.
+
+Period accounting uses token snapshot timestamps, including activity from sessions started before the window. It subtracts the preceding cumulative snapshot, includes increments recorded at or after the start, and excludes records at or after the end. An increment belongs to the time its snapshot was recorded; usage between snapshots cannot be split more finely. Active turns are clipped to the window and added across sessions, so parallel work can exceed the window's wall-clock duration. Missing lifecycle records make active time `N/A`.
+
+To include resumed sessions, a period receipt scans all discovered plain and compressed rollouts. Default period receipts also include the sibling `archived_sessions` directory when present; an explicit `--sessions-dir` stays limited to that directory. Missing token usage, untimed usage, a missing baseline for an older session, or counter corrections inside the window make the combined total partial: available model rows are retained, known costs are summed, and the total gets an asterisk. Empty windows, duplicate session IDs, and corrupt complete records fail clearly. Forks can still contain inherited usage, as described below.
 
 HTML uses a narrow paper layout with a shared vector mark, model-by-model token counts and subtotals, and a prominent total. Input rows exclude cache reads and writes, which have their own rows. Open HTML exports in a browser to print or save as PDF; select the matching paper size in the print dialog. HTML embeds its CSS and has no external assets or scripts. The receipt contains only the project folder's basename, session ID, timestamps, usage, models, and estimates; prompts, full paths, and tool output are excluded. Receipt metadata uses printable ASCII, replacing other characters with `?`, to keep columns stable and prevent terminal control sequences. Interactive terminals get a block mark and bold/dim typography; redirected output and text exports stay plain ASCII. Set `NO_COLOR` or `TERM=dumb` to disable terminal styling. Review project names and session IDs before sharing.
 
@@ -74,7 +84,9 @@ Illustrative session data; this estimate uses the bundled pricing table.
 
 The parser reads JSONL `session_meta`, `turn_context`, and `event_msg` records. It ignores unrelated records and uses the latest cumulative `total_token_usage`, without adding repeated snapshots or adding reasoning tokens again to output. `token_count` records with null/missing info are skipped. Counts must be nonnegative and cache categories must fit within input totals. A corrupt complete record produces an error with a line number; an incomplete final JSON record is ignored with a receipt note so live logs can be read.
 
-Model switches and `model_reroute` events attribute cumulative increments to the current model. If counters decrease or a correction makes increments inconsistent, totals follow the latest snapshot and previous model attribution becomes unknown; a partial cost is never presented as a complete total. Forked transcripts may include inherited usage; estimates cover the recorded cumulative history. Parallel child sessions are separate rollouts and are not automatically added.
+The first metadata header determines the receipt's session identity, project, and start time. Repeated headers for that session or its declared `forked_from_id` ancestor chain are validated and ignored without resetting usage or active turns. Headers for unrelated sessions fail clearly.
+
+Model switches and `model_reroute` events attribute cumulative increments to the current model. `codex-auto-review` is a free safety call; its attributed tokens and model row are excluded from receipts. If counters decrease or a correction makes increments inconsistent, single-session totals follow the latest snapshot and previous model attribution becomes unknown; partial costs are marked with an asterisk. Forked transcripts may include inherited usage; estimates cover the recorded cumulative history. Single-session receipts do not add parallel child sessions. Period receipts include all discovered sessions with activity in the window.
 
 `ELAPSED` runs from session start to the latest recorded event. `ACTIVE TURNS` sums recorded `task_started`/`task_complete` (or `turn_started`/`turn_complete`) intervals, including tool waits. It is not CPU time. It shows `N/A` when lifecycle records are absent. An unfinished turn counts through the last recorded event and adds a snapshot note.
 
@@ -86,7 +98,7 @@ cost = ((input - cached) × input_rate
         + output × output_rate) / 1,000,000
 ```
 
-This is a **standard short-context API-equivalent estimate**, not an amount charged. It excludes service-tier and long-context premiums, regional processing, tool fees, taxes, and subscription accounting. Unknown models, unknown attribution, missing usage, and nonzero cache-write usage show `N/A` for the total. Model aliases or snapshots are not guessed. Small estimates can round to `$0.00`. Pricing is bundled, so exports work offline; edit the table and rebuild when rates change. GPT-5.6 Sol pricing is promotional and may change.
+This is a **standard short-context API-equivalent estimate**, not an amount charged. It excludes service-tier and long-context premiums, regional processing, tool fees, taxes, and subscription accounting. Unknown models, unknown attribution, and nonzero cache-write usage show `N/A` on their model rows. The total sums known costs and adds `*` when any costs or usage are unavailable, for example `$49.08*`, with a note explaining that it is partial. If no costs are known, the partial total is `$0.00*`. Model aliases or snapshots are not guessed. Small estimates can round to `$0.00`. Pricing is bundled, so exports work offline; edit the table and rebuild when rates change. GPT-5.6 Sol pricing is promotional and may change.
 
 Physical ESC/POS export and network printing are deferred to the `codex/thermal-printer` working branch for a later release. The current release supports text and printable HTML, with 80 mm and 58 mm layouts.
 
@@ -139,4 +151,4 @@ Full-output snapshots in `tests/fixtures/` pin the approved 58 mm and 80 mm plai
 
 On macOS and Linux, the integration suite uses the system `script` utility to run the binary in a real pseudoterminal and verify styling, `NO_COLOR`, and `TERM=dumb`. Windows still runs the renderer and redirected-output tests. Other cases cover unknown models, empty receipts, long metadata, maximum token counts, HTML escaping in every metadata field, and the absence of deferred printer commands. No printer or network access is needed for this release's tests.
 
-Themes, QR codes, daily summaries, Git metadata, interactive selection, and additional agent formats are intentionally left for later.
+Themes, QR codes, arbitrary date ranges, Git metadata, interactive selection, and additional agent formats are intentionally left for later.

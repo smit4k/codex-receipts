@@ -67,6 +67,7 @@ pub struct ModelUsage {
 #[derive(Debug)]
 pub struct Receipt {
     pub session_id: String,
+    pub session_count: Option<usize>,
     pub project: String,
     pub started_at: DateTime<Utc>,
     pub ended_at: DateTime<Utc>,
@@ -74,6 +75,20 @@ pub struct Receipt {
     pub models: Vec<ModelUsage>,
     pub total: Option<Tokens>,
     pub warnings: Vec<String>,
+}
+
+impl Receipt {
+    pub fn add_usage(&mut self, model: &str, tokens: Tokens) -> Result<()> {
+        if let Some(usage) = self.models.iter_mut().find(|usage| usage.model == model) {
+            usage.tokens.add(tokens)?;
+        } else {
+            self.models.push(ModelUsage {
+                model: model.to_owned(),
+                tokens,
+            });
+        }
+        Ok(())
+    }
 }
 
 pub fn project_name(cwd: &str) -> &str {

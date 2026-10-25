@@ -43,10 +43,27 @@ impl Pricing {
     }
 
     pub fn total(&self, receipt: &Receipt) -> Option<u128> {
-        receipt.total?;
-        receipt.models.iter().try_fold(0_u128, |total, usage| {
-            total.checked_add(self.model_cost(usage)?)
-        })
+        receipt
+            .models
+            .iter()
+            .filter_map(|usage| self.model_cost(usage))
+            .try_fold(0_u128, u128::checked_add)
+    }
+
+    pub fn is_partial(&self, receipt: &Receipt) -> bool {
+        receipt.total.is_none()
+            || receipt
+                .models
+                .iter()
+                .any(|usage| self.model_cost(usage).is_none())
+    }
+
+    pub fn total_display(&self, receipt: &Receipt) -> String {
+        let mut total = money(self.total(receipt));
+        if self.is_partial(receipt) {
+            total.push('*');
+        }
+        total
     }
 }
 

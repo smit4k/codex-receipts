@@ -113,9 +113,18 @@ pub fn lines(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> Vec<Line> {
     text.space();
     text.center("C O D E X  /  R E C E I P T S", Bold);
     text.space();
-    text.center(&format!("Project: {}", receipt.project), Normal);
-    text.center("SESSION RECEIPT", Muted);
-    text.center(&receipt.session_id, Normal);
+    if let Some(count) = receipt.session_count {
+        text.center("All projects", Normal);
+        text.center("PERIOD RECEIPT", Muted);
+        text.center(
+            &format!("{count} session{}", if count == 1 { "" } else { "s" }),
+            Normal,
+        );
+    } else {
+        text.center(&format!("Project: {}", receipt.project), Normal);
+        text.center("SESSION RECEIPT", Muted);
+        text.center(&receipt.session_id, Normal);
+    }
     text.center(
         &receipt
             .started_at
@@ -123,6 +132,13 @@ pub fn lines(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> Vec<Line> {
             .to_string(),
         Normal,
     );
+    if receipt.session_count.is_some() {
+        text.center("to", Muted);
+        text.center(
+            &receipt.ended_at.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+            Normal,
+        );
+    }
     text.space();
 
     for usage in &receipt.models {
@@ -139,15 +155,26 @@ pub fn lines(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> Vec<Line> {
         text.space();
     }
     if receipt.total.is_none() {
-        text.line("No token usage recorded", Normal);
+        text.line(
+            if receipt.session_count.is_some() {
+                "Usage incomplete or unavailable"
+            } else {
+                "No token usage recorded"
+            },
+            Normal,
+        );
         text.space();
     }
     text.rule('=');
-    text.row("TOTAL (API EST.)", &money(pricing.total(receipt)), Total);
+    text.row("TOTAL (API EST.)", &pricing.total_display(receipt), Total);
     text.rule('=');
     text.space();
     text.row(
-        "Elapsed",
+        if receipt.session_count.is_some() {
+            "Period"
+        } else {
+            "Elapsed"
+        },
         &duration(receipt.ended_at - receipt.started_at),
         Normal,
     );
@@ -168,8 +195,9 @@ pub fn lines(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> Vec<Line> {
     text.center("Excludes premiums, tools & extras", Muted);
     text.center("Not a subscription charge", Muted);
     text.center(&format!("Prices: {}", pricing.version), Muted);
-    if pricing.total(receipt).is_none() && receipt.total.is_some() {
+    if pricing.is_partial(receipt) {
         text.space();
+        text.line("* Partial total: known costs", Muted);
         text.line("N/A: unknown model or unpriced usage", Muted);
     }
     for warning in &receipt.warnings {

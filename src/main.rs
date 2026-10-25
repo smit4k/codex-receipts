@@ -53,6 +53,10 @@ fn output(path: &Path, bytes: &[u8]) -> Result<()> {
 }
 
 fn run(cli: Cli) -> Result<()> {
+    ensure!(
+        cli.period.is_none() || matches!(cli.command, None | Some(Command::Export { .. })),
+        "--period can only be used for display or export"
+    );
     let pricing = Pricing::bundled()?;
     if let Some(Command::Hook { output_dir }) = &cli.command {
         #[derive(serde::Deserialize)]
@@ -117,14 +121,26 @@ fn run(cli: Cli) -> Result<()> {
         show_id.is_none() || (cli.file.is_none() && cli.session.is_none() && !cli.latest),
         "show <id> cannot be combined with --file, --session, or --latest"
     );
-    let path = match &cli.file {
-        Some(path) => path.clone(),
-        None => discovery::select(
-            &discovery::discover(&sessions_dir(&cli)?)?,
-            show_id.or(cli.session.as_deref()),
-        )?,
+    let receipt = if let Some(period) = cli.period {
+        let root = sessions_dir(&cli)?;
+        let mut sessions = discovery::discover(&root)?;
+        if cli.sessions_dir.is_none() {
+            let archived = root.with_file_name("archived_sessions");
+            if archived.exists() {
+                sessions.extend(discovery::discover(&archived)?);
+            }
+        }
+        session::summarize(&sessions, period.range(chrono::Utc::now())?)?
+    } else {
+        let path = match &cli.file {
+            Some(path) => path.clone(),
+            None => discovery::select(
+                &discovery::discover(&sessions_dir(&cli)?)?,
+                show_id.or(cli.session.as_deref()),
+            )?,
+        };
+        parser::parse(&path)?
     };
-    let receipt = parser::parse(&path)?;
     match cli.command {
         None | Some(Command::Show { .. }) => {
             let styled = io::stdout().is_terminal()
