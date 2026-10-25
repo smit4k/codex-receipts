@@ -41,7 +41,7 @@ pub fn render(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> String {
     } else {
         (
             format!(
-                "<p>Project: {project}</p>\n<p class=\"session-label\">SESSION RECEIPT</p>\n<p class=\"session\">{session}</p>\n<time>{date}</time>"
+                "<p>Project: {project}</p>\n<p class=\"session\">{session}</p>\n<time>{date}</time>"
             ),
             "Codex session receipt",
             "Elapsed",
@@ -53,12 +53,6 @@ pub fn render(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> String {
         duration(receipt.ended_at - receipt.started_at)
     };
     let total = pricing.total_display(receipt);
-    let total_size = if total.len() > 12 { 14 } else { 24 };
-    let total_print_size = if total.len() > 12 {
-        if compact { 11 } else { 16 }
-    } else {
-        20
-    };
     let mut items = String::new();
     for usage in &receipt.models {
         let name = escape(&model_name(&usage.model));
@@ -103,7 +97,7 @@ pub fn render(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> String {
 <title>Codex receipt — {project}</title>
 <style>
 :root {{
-  --paper: #faf7ef;
+  --paper: #fff;
   --ink: #26251f;
   --muted: #77746b;
   --rule: #77746b;
@@ -144,17 +138,15 @@ body {{
 }}
 header {{ text-align: center; }}
 .mark {{ display: block; width: 100px; height: 50px; margin: 0 auto 20px; fill: currentColor; shape-rendering: crispEdges; }}
-h1 {{ margin: 0; font-size: 10px; line-height: 1.6; letter-spacing: 3px; font-weight: 700; }}
 .identity {{ margin: 27px 0 30px; font-size: 11px; line-height: 1.7; letter-spacing: -.3px; }}
 .identity p {{ margin: 0; overflow-wrap: anywhere; }}
-.identity .session-label {{ margin-top: 7px; font-size: 9px; letter-spacing: 1.5px; color: var(--muted); }}
 .identity .session {{ font-size: 10px; }}
 .identity time {{ display: block; margin-top: 3px; font-size: 10px; }}
 .item {{ margin: 0 0 24px; break-inside: avoid; }}
 .item h2 {{
   display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
   margin: 0; padding: 8px 0 7px;
-  border-top: 3px double var(--rule); border-bottom: 1px dashed var(--rule);
+  border-top: 1px solid var(--rule); border-bottom: 1px dashed var(--rule);
   font-size: 14px; line-height: 1.4; font-weight: 700;
 }}
 .item h2 > :first-child {{ min-width: 0; overflow-wrap: anywhere; }}
@@ -163,9 +155,9 @@ dl {{ margin: 10px 0 0; }}
 dl > div {{ display: flex; justify-content: space-between; gap: 10px; }}
 dt {{ padding-left: 10px; min-width: 0; overflow-wrap: anywhere; }}
 dd {{ margin: 0; text-align: right; white-space: nowrap; flex-shrink: 0; }}
-.total {{ border-top: 3px double var(--rule); border-bottom: 3px double var(--rule); padding: 10px 0 11px; break-inside: avoid; }}
+.total {{ border-top: 1px solid var(--rule); border-bottom: 1px dashed var(--rule); padding: 10px 0 11px; break-inside: avoid; }}
 .total .caption {{ margin: 0 0 4px; font-size: 9px; letter-spacing: 1.2px; color: var(--muted); }}
-.total .sum {{ display: flex; justify-content: space-between; gap: 12px; font-size: {total_size}px; line-height: 1.1; font-weight: 700; letter-spacing: -.8px; }}
+.total .sum {{ display: flex; justify-content: space-between; gap: 12px; font-size: 14px; line-height: 1.4; font-weight: 700; }}
 footer {{ break-inside: avoid; }}
 .meta {{ margin-top: 23px; font-size: 11px; }}
 .meta dt {{ padding: 0; }}
@@ -174,12 +166,14 @@ footer {{ break-inside: avoid; }}
 .notes {{ margin-top: 12px; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }}
 .notes:empty {{ display: none; }}
 .notes p {{ margin: 4px 0 0; }}
+.promo {{ margin: 18px 0 0; border-top: 1px dashed var(--rule); padding-top: 14px; text-align: center; font-size: 10px; line-height: 1.5; }}
+.promo a {{ color: inherit; text-decoration: underline; overflow-wrap: anywhere; }}
 .empty {{ margin: 20px 0; text-align: center; }}
 @page {{ margin: 0; }}
 @media (max-width: 380px) {{
   body {{ padding: 28px 12px 44px; }}
   .receipt {{ padding-left: 18px; padding-right: 18px; font-size: 12px; }}
-  .item h2 {{ font-size: 13px; }}
+  .item h2, .total .sum {{ font-size: 13px; }}
 }}
 @media print {{
   :root {{ --paper: #fff; --ink: #000; --muted: #444; --rule: #000; }}
@@ -187,9 +181,7 @@ footer {{ break-inside: avoid; }}
   .receipt {{ width: var(--print-width); max-width: none; margin: 0; padding: 7mm 4mm 5mm; box-shadow: none; font-size: {print_font}px; letter-spacing: -.3px; }}
   .receipt::after {{ display: none; }}
   .mark {{ width: {mark_width}mm; height: {mark_height}mm; margin-bottom: 4mm; }}
-  h1 {{ font-size: 8px; letter-spacing: 2px; }}
   .identity {{ margin: 5mm 0 6mm; font-size: 9px; }}
-  .identity .session-label {{ font-size: 8px; }}
   .identity .session {{ font-size: 8px; }}
   .identity time {{ font-size: 8.5px; }}
   .item {{ margin-bottom: 5mm; }}
@@ -198,11 +190,12 @@ footer {{ break-inside: avoid; }}
   dt {{ padding-left: 2mm; }}
   .total {{ padding: 2.5mm 0; }}
   .total .caption {{ font-size: 7.5px; }}
-  .total .sum {{ font-size: {total_print_size}px; }}
+  .total .sum {{ font-size: {print_font}px; }}
   .meta, .cashier {{ font-size: 9px; }}
   .meta {{ margin-top: 4mm; }}
   .thanks {{ margin: 6mm 0 5mm; font-size: 12px; }}
   .notes {{ font-size: 8px; }}
+  .promo {{ margin-top: 4mm; padding-top: 3mm; font-size: 8px; }}
 }}
 </style>
 </head>
@@ -210,7 +203,6 @@ footer {{ break-inside: avoid; }}
 <main class="receipt" aria-label="{receipt_label}">
 <header>
 {mark}
-<h1>CODEX / RECEIPTS</h1>
 <div class="identity">
 {identity}
 </div>
@@ -225,6 +217,7 @@ footer {{ break-inside: avoid; }}
 <p class="cashier">CASHIER: Codex</p>
 <p class="thanks">Thank you for building!</p>
 <div class="notes">{notes}</div>
+<p class="promo">Print your own <strong>Codex receipts</strong> at<br><a href="https://github.com/smit4k/codex-receipts/">https://github.com/smit4k/codex-receipts/</a></p>
 </footer>
 </main>
 </body>
