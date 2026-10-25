@@ -21,6 +21,8 @@ codex-receipts --file /path/to/rollout.jsonl
 codex-receipts --sessions-dir /path/to/sessions
 codex-receipts --period week
 codex-receipts --period month
+codex-receipts print
+codex-receipts print --period week --paper 58
 
 codex-receipts export --format html -o receipt.html
 codex-receipts export --format text -o receipt.txt
@@ -93,7 +95,15 @@ cost = ((input - cached) × input_rate
 
 This is a **standard short-context API-equivalent estimate**, not an amount charged. It excludes service-tier and long-context premiums, regional processing, tool fees, taxes, and subscription accounting. Unknown models, unknown attribution, and nonzero cache-write usage show `N/A` on their model rows. The total sums known costs and adds `*` when any costs or usage are unavailable, for example `$49.08*`, with a note explaining that it is partial. If no costs are known, the partial total is `$0.00*`. Model aliases or snapshots are not guessed. Small estimates can round to `$0.00`. Pricing is bundled, so exports work offline; edit the table and rebuild when rates change. GPT-5.6 Sol pricing is promotional and may change.
 
-Physical ESC/POS export and network printing are deferred to the `codex/thermal-printer` working branch for a later release. The current release supports text and printable HTML, with 80 mm and 58 mm layouts.
+`codex-receipts print` opens the receipt in a native preview window and automatically opens the print dialog after the HTML loads. It accepts the same `--file`, `--session`, `--latest`, `--period`, and `--paper` selectors as display and export. Choose your printer and matching paper size in the dialog, then print or cancel. Close the receipt window when finished to return to the shell. Receipt HTML stays in memory, and exported HTML is unchanged.
+
+Printing uses macOS WebKit (macOS 11+), the Windows WebView2 Runtime, or Linux GTK 3 and WebKitGTK 4.1. Windows installations missing WebView2 must install [Microsoft's WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/). Linux requires a graphical desktop (X11 or Wayland) and the GTK/WebKitGTK libraries. On Debian/Ubuntu, install build dependencies before `cargo install`:
+
+```sh
+sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libxdo-dev libdbus-1-dev
+```
+
+Native printing adds desktop-library dependencies to Linux builds; text and HTML exports still work without a running desktop. Physical ESC/POS export and direct network printing remain deferred to the `codex/thermal-printer` working branch.
 
 ## Codex integration
 
@@ -142,6 +152,6 @@ Tests use sanitized synthetic fixtures modeled on local Codex rollout records. C
 
 Full-output snapshots in `tests/fixtures/` pin the approved 58 mm and 80 mm plain text, styled terminal output, and HTML (including its embedded CSS and SVG mark). Terminal snapshots store escape bytes as literal `\x1b` so diffs remain readable. The multi-model fixture exercises repeated model blocks and subtotals. Review rendered output before updating these snapshots; an unexpected change should fail the tests.
 
-On macOS and Linux, the integration suite uses the system `script` utility to run the binary in a real pseudoterminal and verify styling, `NO_COLOR`, and `TERM=dumb`. Windows still runs the renderer and redirected-output tests. Other cases cover unknown models, empty receipts, long metadata, maximum token counts, HTML escaping in every metadata field, and the absence of deferred printer commands. No printer or network access is needed for this release's tests.
+On macOS and Linux, the integration suite uses the system `script` utility to run the binary in a real pseudoterminal and verify styling, `NO_COLOR`, and `TERM=dumb`. Windows still runs the renderer and redirected-output tests. Other cases cover unknown models, empty receipts, long metadata, maximum token counts, HTML escaping in every metadata field, print command input validation, and the absence of raw printer exports. The interactive print smoke test is ignored by default; run `cargo test --test cli native_print_dialog_opens_with_a_fixture_receipt -- --ignored` and close the receipt window to finish. No printer or network access is needed for this release's tests.
 
 Themes, QR codes, arbitrary date ranges, Git metadata, interactive selection, and additional agent formats are intentionally left for later.

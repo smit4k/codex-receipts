@@ -9,7 +9,7 @@ use std::{ops::Range, path::PathBuf};
     version,
     about = "A receipt for your Codex sessions.",
     before_help = "CODEX / RECEIPTS",
-    after_help = "Try it:\n  codex-receipts\n  codex-receipts --period week\n  codex-receipts export --period month --format html -o month.html"
+    after_help = "Try it:\n  codex-receipts\n  codex-receipts --period week\n  codex-receipts print --period week\n  codex-receipts export --period month --format html -o month.html"
 )]
 pub struct Cli {
     /// Override $CODEX_HOME/sessions or ~/.codex/sessions
@@ -64,6 +64,8 @@ pub enum Command {
     Sessions,
     /// Display a specific session
     Show { id: String },
+    /// Open the receipt and the native print dialog
+    Print,
     /// Export a receipt; existing files are never overwritten
     Export {
         #[arg(long, value_enum, default_value = "text")]

@@ -1,5 +1,6 @@
 mod cli;
 mod pricing;
+mod print;
 mod receipt;
 mod render;
 mod session;
@@ -54,8 +55,12 @@ fn output(path: &Path, bytes: &[u8]) -> Result<()> {
 
 fn run(cli: Cli) -> Result<()> {
     ensure!(
-        cli.period.is_none() || matches!(cli.command, None | Some(Command::Export { .. })),
-        "--period can only be used for display or export"
+        cli.period.is_none()
+            || matches!(
+                cli.command,
+                None | Some(Command::Export { .. } | Command::Print)
+            ),
+        "--period can only be used for display, export, or print"
     );
     let pricing = Pricing::bundled()?;
     if let Some(Command::Hook { output_dir }) = &cli.command {
@@ -163,6 +168,7 @@ fn run(cli: Cli) -> Result<()> {
             };
             output(&path, text.as_bytes())
         }
+        Some(Command::Print) => print::show(html::render(&receipt, &pricing, cli.paper)),
         Some(Command::Sessions | Command::Hook { .. }) => unreachable!("handled above"),
     }
 }

@@ -626,3 +626,21 @@ fn combining_model_usage_rejects_token_overflow() {
         .is_err()
     );
 }
+
+#[test]
+fn print_accepts_session_and_period_selectors_on_either_side_of_the_command() {
+    use crate::cli::{Cli, Command};
+    use clap::Parser;
+
+    for args in [
+        vec!["print"],
+        vec!["print", "--latest"],
+        vec!["print", "--session", "session-id", "--paper", "58"],
+        vec!["--file", "rollout.jsonl", "print"],
+        vec!["print", "--period", "week"],
+        vec!["--period", "month", "print", "--paper", "80"],
+    ] {
+        let cli = Cli::try_parse_from(std::iter::once("codex-receipts").chain(args)).unwrap();
+        assert!(matches!(cli.command, Some(Command::Print)));
+    }
+}

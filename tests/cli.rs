@@ -218,21 +218,48 @@ fn text_alias_and_stdout_exports_match_the_requested_format() {
 }
 
 #[test]
-fn release_does_not_expose_deferred_printer_commands() {
+fn print_command_is_available_and_raw_printer_exports_remain_deferred() {
     let help = cli(&["--help"]);
     ok(&help);
     assert!(
-        !String::from_utf8(help.stdout)
+        String::from_utf8(help.stdout)
             .unwrap()
             .lines()
             .any(|line| line.starts_with("  print "))
     );
-    assert!(!cli(&["print"]).status.success());
+    let help = cli(&["print", "--help"]);
+    ok(&help);
+    assert!(String::from_utf8_lossy(&help.stdout).contains("native print dialog"));
     assert!(
         !cli(&["export", "--format", "escpos", "-o", "-"])
             .status
             .success()
     );
+}
+
+#[test]
+fn print_validates_session_inputs_before_opening_a_window() {
+    let dir = Temp::new();
+    for period in [None, Some("week"), Some("month")] {
+        let mut args = vec!["print", "--sessions-dir", dir.0.to_str().unwrap()];
+        if let Some(period) = period {
+            args.extend(["--period", period]);
+        }
+        let output = cli(&args);
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("no Codex session"));
+    }
+    let path = dir.0.join("broken.jsonl");
+    fs::write(&path, "{invalid}\n").unwrap();
+    let output = cli(&["print", "--file", path.to_str().unwrap()]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("invalid JSON"));
+}
+
+#[test]
+#[ignore = "opens a native print dialog; close the receipt window to finish"]
+fn native_print_dialog_opens_with_a_fixture_receipt() {
+    ok(&cli(&["print", "--file", fixture().to_str().unwrap()]));
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]

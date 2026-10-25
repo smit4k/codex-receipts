@@ -17,7 +17,10 @@ codex-receipts export --session SESSION_ID --format html -o receipt.html
 codex-receipts export --session SESSION_ID --format html --paper 58 -o receipt-58.html
 codex-receipts --period week
 codex-receipts export --period month --format html -o month.html
+codex-receipts print --period week
 ```
+
+When the user asks to print, use `codex-receipts print` with the same session or period selector and optional `--paper 58`. It opens a native receipt window and print dialog; the user chooses print or cancel and closes the receipt window when finished. A graphical desktop and the platform WebView runtime are required.
 
 Exports refuse to overwrite existing files. Select another filename if needed. Return a link to the exported file.
 
