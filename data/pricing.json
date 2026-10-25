@@ -1,0 +1,12 @@
+{
+  "version": "2026-10-24",
+  "source": "https://developers.openai.com/api/docs/pricing",
+  "basis": "Standard short-context USD rates; excludes tools, cache writes, regional and service-tier premiums",
+  "models": {
+    "gpt-6-astra": { "input": 10000, "cached": 1000, "output": 50000 },
+    "gpt-6.1-sol": { "input": 2000, "cached": 100, "output": 10000 },
+    "gpt-6-luna": { "input": 100, "cached": 10, "output": 500 },
+    "gpt-5.6-sol": { "input": 4000, "cached": 400, "output": 20000 },
+    "gpt-5.3-codex": { "input": 1750, "cached": 175, "output": 14000 }
+  }
+}
