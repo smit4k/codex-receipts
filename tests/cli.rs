@@ -280,3 +280,59 @@ fn real_terminal_respects_no_color_and_dumb_terminal_modes() {
         }
     }
 }
+
+#[test]
+fn compressed_rollouts_are_discovered_and_export_like_plain_rollouts() {
+    let dir = Temp::new();
+    let path = dir.0.join("rollout.jsonl.zst");
+    let log = fs::read(fixture()).unwrap();
+    let split = log.len() / 2;
+    let mut compressed = zstd::stream::encode_all(&log[..split], 0).unwrap();
+    compressed.extend(zstd::stream::encode_all(&log[split..], 0).unwrap());
+    fs::write(&path, &compressed).unwrap();
+    let listing = cli(&["--sessions-dir", dir.0.to_str().unwrap(), "sessions"]);
+    ok(&listing);
+    assert!(
+        String::from_utf8_lossy(&listing.stdout).contains("019e0000-0000-7000-8000-000000000001")
+    );
+    for format in ["text", "html"] {
+        let plain = cli(&[
+            "export",
+            "--file",
+            fixture().to_str().unwrap(),
+            "--format",
+            format,
+            "-o",
+            "-",
+        ]);
+        let zipped = cli(&[
+            "export",
+            "--file",
+            path.to_str().unwrap(),
+            "--format",
+            format,
+            "-o",
+            "-",
+        ]);
+        ok(&plain);
+        ok(&zipped);
+        assert_eq!(plain.stdout, zipped.stdout);
+    }
+    assert_eq!(fs::read(&path).unwrap(), compressed);
+}
+
+#[test]
+fn corrupt_or_truncated_compressed_rollouts_fail_with_the_file_path() {
+    let dir = Temp::new();
+    let path = dir.0.join("broken.jsonl.zst");
+    let mut truncated =
+        zstd::stream::encode_all(fs::read(fixture()).unwrap().as_slice(), 0).unwrap();
+    truncated.truncate(truncated.len() - 4);
+    for bytes in [b"not zstd".to_vec(), truncated] {
+        fs::write(&path, bytes).unwrap();
+        let output = cli(&["--file", path.to_str().unwrap()]);
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("broken.jsonl.zst"));
+    }
+}

@@ -11,7 +11,7 @@ cargo install --path . --locked
 codex-receipts
 ```
 
-The default shows the session with the newest **start timestamp** under `$CODEX_HOME/sessions`, or `~/.codex/sessions` when `CODEX_HOME` is unset. Resuming an older session does not make it the newest. Use its ID or rollout path to select it explicitly.
+The default shows the session with the newest **start timestamp** under `$CODEX_HOME/sessions`, or `~/.codex/sessions` when `CODEX_HOME` is unset. Both plain `.jsonl` and Zstandard-compressed `.jsonl.zst` rollouts are supported, including direct `--file` reads. Compressed logs are streamed without unpacking or changing files on disk. Resuming an older session does not make it the newest. Use its ID or rollout path to select it explicitly.
 
 ```sh
 codex-receipts sessions

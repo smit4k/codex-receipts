@@ -12,8 +12,15 @@ pub fn discover(root: &Path) -> Result<Vec<Session>> {
     let mut sessions = Vec::new();
     for entry in WalkDir::new(root).follow_links(false) {
         let entry = entry.with_context(|| format!("searching {}", root.display()))?;
-        if !entry.file_type().is_file() || entry.path().extension().is_none_or(|ext| ext != "jsonl")
-        {
+        let path = entry.path();
+        let rollout = path.extension().is_some_and(|ext| ext == "jsonl")
+            || (path.extension().is_some_and(|ext| ext == "zst")
+                && path.file_stem().is_some_and(|stem| {
+                    Path::new(stem)
+                        .extension()
+                        .is_some_and(|ext| ext == "jsonl")
+                }));
+        if !entry.file_type().is_file() || !rollout {
             continue;
         }
         match parser::metadata(entry.path()) {

@@ -28,8 +28,19 @@ struct Event {
     payload: Value,
 }
 
+fn open(path: &Path) -> Result<Box<dyn BufRead>> {
+    let file = File::open(path).with_context(|| format!("reading {}", path.display()))?;
+    if path.extension().is_some_and(|ext| ext == "zst") {
+        let decoder = zstd::stream::read::Decoder::new(file)
+            .with_context(|| format!("decompressing {}", path.display()))?;
+        Ok(Box::new(BufReader::new(decoder)))
+    } else {
+        Ok(Box::new(BufReader::new(file)))
+    }
+}
+
 pub fn metadata(path: &Path) -> Result<Metadata> {
-    let mut reader = BufReader::new(File::open(path)?);
+    let mut reader = open(path)?;
     let mut line = String::new();
     reader.read_line(&mut line)?;
     let event: Event = serde_json::from_str(&line).context("invalid session header")?;
@@ -41,9 +52,7 @@ pub fn metadata(path: &Path) -> Result<Metadata> {
 }
 
 pub fn parse(path: &Path) -> Result<Receipt> {
-    let reader =
-        BufReader::new(File::open(path).with_context(|| format!("reading {}", path.display()))?);
-    parse_reader(reader).with_context(|| format!("parsing {}", path.display()))
+    parse_reader(open(path)?).with_context(|| format!("parsing {}", path.display()))
 }
 
 pub fn parse_reader(mut reader: impl BufRead) -> Result<Receipt> {
