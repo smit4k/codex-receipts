@@ -99,7 +99,7 @@ mkdir -p ~/.agents/skills
 cp -R skills/codex-receipts ~/.agents/skills/
 ```
 
-Ask Codex: “Generate a receipt for this session and export it as HTML.” See the official [skills documentation](https://learn.chatgpt.com/docs/build-skills).
+Invoke it explicitly with `$codex-receipts`, or ask Codex: “Generate a receipt for this session and export it as HTML.” See the official [skills documentation](https://learn.chatgpt.com/docs/build-skills).
 
 The optional `hook` subcommand reads the standard [SessionEnd JSON input](https://learn.chatgpt.com/docs/hooks) from stdin and writes `<session_id>.html` to the specified directory. It checks that the event ID matches the transcript. It does not discover sessions automatically.
 
@@ -133,6 +133,10 @@ cargo test --locked
 cargo clippy --all-targets --all-features --locked -- -D warnings
 ```
 
-Tests use a sanitized synthetic fixture modeled on local Codex rollout records. Coverage includes cumulative snapshots, multiple models, missing usage, counter corrections, idle time, malformed/truncated input, precise costs, safe renderers, session discovery, exports, and hook handling.
+Tests use sanitized synthetic fixtures modeled on local Codex rollout records. Coverage includes cumulative snapshots, multiple models, missing usage, counter corrections, idle time, malformed/truncated input, precise costs, safe renderers, session discovery, exports, and hook handling.
+
+Full-output snapshots in `tests/fixtures/` pin the approved 58 mm and 80 mm plain text, styled terminal output, and HTML (including its embedded CSS and SVG mark). Terminal snapshots store escape bytes as literal `\x1b` so diffs remain readable. The multi-model fixture exercises repeated model blocks and subtotals. Review rendered output before updating these snapshots; an unexpected change should fail the tests.
+
+On macOS and Linux, the integration suite uses the system `script` utility to run the binary in a real pseudoterminal and verify styling, `NO_COLOR`, and `TERM=dumb`. Windows still runs the renderer and redirected-output tests. Other cases cover unknown models, empty receipts, long metadata, maximum token counts, HTML escaping in every metadata field, and the absence of deferred printer commands. No printer or network access is needed for this release's tests.
 
 Themes, QR codes, daily summaries, Git metadata, interactive selection, and additional agent formats are intentionally left for later.

@@ -1,0 +1,46 @@
+
+\x1b[1m          ▀█▄
+            ██
+          ▄█▀    █████
+\x1b[0m\x1b[0m\x1b[0m
+\x1b[1m C O D E X  /  R E C E I P T S\x1b[0m
+\x1b[0m\x1b[0m
+\x1b[0m    Project: codex-receipts\x1b[0m
+\x1b[2m        SESSION RECEIPT\x1b[0m
+\x1b[0m019e0000-0000-7000-8000-00000000\x1b[0m
+\x1b[0m              0001\x1b[0m
+\x1b[0m    2026-10-24 19:00:00 UTC\x1b[0m
+\x1b[0m\x1b[0m
+\x1b[2m================================\x1b[0m
+\x1b[1mGPT-5.3 Codex              $0.20\x1b[0m
+\x1b[2m--------------------------------\x1b[0m
+\x1b[0m  Input (uncached)        14,891\x1b[0m
+\x1b[0m  Output tokens           12,304\x1b[0m
+\x1b[0m  Cache write                  0\x1b[0m
+\x1b[0m  Cache read              28,000\x1b[0m
+\x1b[0m\x1b[0m
+\x1b[2m================================\x1b[0m
+\x1b[1mGPT-6.1 Sol                $0.51\x1b[0m
+\x1b[2m--------------------------------\x1b[0m
+\x1b[0m  Input (uncached)        52,000\x1b[0m
+\x1b[0m  Output tokens           40,000\x1b[0m
+\x1b[0m  Cache write                  0\x1b[0m
+\x1b[0m  Cache read              56,000\x1b[0m
+\x1b[0m\x1b[0m
+\x1b[2m================================\x1b[0m
+\x1b[1mTOTAL (API EST.)           $0.71\x1b[0m
+\x1b[2m================================\x1b[0m
+\x1b[0m\x1b[0m
+\x1b[0mElapsed                 3h 0m 0s\x1b[0m
+\x1b[0mActive turns              0m 11s\x1b[0m
+\x1b[0mCASHIER: Codex\x1b[0m
+\x1b[0m\x1b[0m
+\x1b[1m    Thank you for building!\x1b[0m
+\x1b[0m\x1b[0m
+\x1b[2m       Estimated API cost\x1b[0m
+\x1b[2m  Standard short-context rates\x1b[0m
+\x1b[2m   Excludes premiums, tools &\x1b[0m
+\x1b[2m             extras\x1b[0m
+\x1b[2m   Not a subscription charge\x1b[0m
+\x1b[2m       Prices: 2026-10-24\x1b[0m
+\x1b[0m\x1b[0m

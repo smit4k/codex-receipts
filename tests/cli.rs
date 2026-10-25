@@ -177,3 +177,106 @@ fn conflicting_selection_and_empty_directories_fail_clearly() {
     );
     assert!(!cli(&["--paper", "72"]).status.success());
 }
+
+#[test]
+fn text_alias_and_stdout_exports_match_the_requested_format() {
+    for paper in ["58", "80"] {
+        let plain = cli(&["--file", fixture().to_str().unwrap(), "--paper", paper]);
+        ok(&plain);
+        for format in ["text", "ascii"] {
+            let exported = cli(&[
+                "export",
+                "--file",
+                fixture().to_str().unwrap(),
+                "--paper",
+                paper,
+                "--format",
+                format,
+                "-o",
+                "-",
+            ]);
+            ok(&exported);
+            assert_eq!(exported.stdout, plain.stdout);
+            assert!(exported.stderr.is_empty());
+            assert!(!exported.stdout.contains(&0x1b));
+        }
+        let page = cli(&[
+            "export",
+            "--file",
+            fixture().to_str().unwrap(),
+            "--paper",
+            paper,
+            "--format",
+            "html",
+            "-o",
+            "-",
+        ]);
+        ok(&page);
+        assert!(page.stdout.starts_with(b"<!doctype html>"));
+        assert!(page.stderr.is_empty());
+    }
+}
+
+#[test]
+fn release_does_not_expose_deferred_printer_commands() {
+    let help = cli(&["--help"]);
+    ok(&help);
+    assert!(
+        !String::from_utf8(help.stdout)
+            .unwrap()
+            .lines()
+            .any(|line| line.starts_with("  print "))
+    );
+    assert!(!cli(&["print"]).status.success());
+    assert!(
+        !cli(&["export", "--format", "escpos", "-o", "-"])
+            .status
+            .success()
+    );
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[test]
+fn real_terminal_respects_no_color_and_dumb_terminal_modes() {
+    let binary = env!("CARGO_BIN_EXE_codex-receipts");
+    for (no_color, term, styled) in [
+        (false, "xterm-256color", true),
+        (true, "xterm-256color", false),
+        (false, "dumb", false),
+    ] {
+        let mut command = Command::new("script");
+        #[cfg(target_os = "macos")]
+        command.args([
+            "-q",
+            "/dev/null",
+            binary,
+            "--file",
+            fixture().to_str().unwrap(),
+        ]);
+        #[cfg(target_os = "linux")]
+        {
+            let shell_command = format!(
+                "'{}' --file '{}'",
+                binary.replace('\'', "'\\''"),
+                fixture().to_str().unwrap().replace('\'', "'\\''")
+            );
+            command.args(["-q", "-e", "-c", &shell_command, "/dev/null"]);
+        }
+        command
+            .env_remove("NO_COLOR")
+            .env("TERM", term)
+            .stdin(Stdio::null());
+        if no_color {
+            command.env("NO_COLOR", "1");
+        }
+        let output = command.output().unwrap();
+        ok(&output);
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(text.contains("TOTAL (API EST.)"));
+        assert_eq!(text.contains("\x1b[1m"), styled);
+        if !styled {
+            assert!(!text.contains('\u{1b}'));
+            assert!(text.is_ascii());
+        }
+    }
+}

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta name="color-scheme" content="light">
+<title>Codex receipt — codex-receipts</title>
+<style>
+:root {
+  --paper: #faf7ef;
+  --ink: #26251f;
+  --muted: #77746b;
+  --rule: #77746b;
+  --screen-width: 380px;
+  --print-width: 80mm;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 64px 24px 80px;
+  background: #272a27;
+  background-image: repeating-linear-gradient(0deg, #ffffff02 0 1px, transparent 1px 3px);
+  color: var(--ink);
+  font-family: 'Courier New', Courier, monospace;
+  -webkit-font-smoothing: auto;
+}
+.receipt {
+  position: relative;
+  width: var(--screen-width);
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 44px 24px 32px;
+  background: var(--paper);
+  box-shadow: 0 2px 3px #0003, 0 24px 64px #0005;
+  font-size: 13px;
+  line-height: 1.55;
+  letter-spacing: -.35px;
+  font-variant-numeric: tabular-nums;
+}
+.receipt::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -8px;
+  height: 8px;
+  background: linear-gradient(135deg, var(--paper) 50%, transparent 50%) 0 0/12px 12px repeat-x,
+              linear-gradient(225deg, var(--paper) 50%, transparent 50%) 0 0/12px 12px repeat-x;
+}
+header { text-align: center; }
+.mark { display: block; width: 100px; height: 50px; margin: 0 auto 20px; fill: currentColor; shape-rendering: crispEdges; }
+h1 { margin: 0; font-size: 10px; line-height: 1.6; letter-spacing: 3px; font-weight: 700; }
+.identity { margin: 27px 0 30px; font-size: 11px; line-height: 1.7; letter-spacing: -.3px; }
+.identity p { margin: 0; overflow-wrap: anywhere; }
+.identity .session-label { margin-top: 7px; font-size: 9px; letter-spacing: 1.5px; color: var(--muted); }
+.identity .session { font-size: 10px; }
+.identity time { display: block; margin-top: 3px; font-size: 10px; }
+.item { margin: 0 0 24px; break-inside: avoid; }
+.item h2 {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  margin: 0; padding: 8px 0 7px;
+  border-top: 3px double var(--rule); border-bottom: 1px dashed var(--rule);
+  font-size: 14px; line-height: 1.4; font-weight: 700;
+}
+.item h2 > :first-child { min-width: 0; overflow-wrap: anywhere; }
+.amount { flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+dl { margin: 10px 0 0; }
+dl > div { display: flex; justify-content: space-between; gap: 10px; }
+dt { padding-left: 10px; min-width: 0; overflow-wrap: anywhere; }
+dd { margin: 0; text-align: right; white-space: nowrap; flex-shrink: 0; }
+.total { border-top: 3px double var(--rule); border-bottom: 3px double var(--rule); padding: 10px 0 11px; break-inside: avoid; }
+.total .caption { margin: 0 0 4px; font-size: 9px; letter-spacing: 1.2px; color: var(--muted); }
+.total .sum { display: flex; justify-content: space-between; gap: 12px; font-size: 24px; line-height: 1.1; font-weight: 700; letter-spacing: -.8px; }
+footer { break-inside: avoid; }
+.meta { margin-top: 23px; font-size: 11px; }
+.meta dt { padding: 0; }
+.cashier { margin: 12px 0 0; font-size: 11px; }
+.thanks { margin: 30px 0 25px; text-align: center; font-size: 14px; font-weight: 400; letter-spacing: -.45px; }
+.fine-print { color: var(--muted); text-align: center; font-size: 9px; line-height: 1.65; letter-spacing: -.1px; }
+.fine-print p { margin: 0; }
+.fine-print a { color: inherit; text-decoration-thickness: .5px; text-underline-offset: 2px; }
+.fine-print .pricing { margin-top: 8px; }
+.notes { margin-top: 12px; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.notes:empty { display: none; }
+.notes p { margin: 4px 0 0; }
+.empty { margin: 20px 0; text-align: center; }
+@page { margin: 0; }
+@media (max-width: 380px) {
+  body { padding: 28px 12px 44px; }
+  .receipt { padding-left: 18px; padding-right: 18px; font-size: 12px; }
+  .item h2 { font-size: 13px; }
+}
+@media print {
+  :root { --paper: #fff; --ink: #000; --muted: #444; --rule: #000; }
+  body { min-height: 0; background: none; padding: 0; }
+  .receipt { width: var(--print-width); max-width: none; margin: 0; padding: 7mm 4mm 5mm; box-shadow: none; font-size: 11.5px; letter-spacing: -.3px; }
+  .receipt::after { display: none; }
+  .mark { width: 24mm; height: 12mm; margin-bottom: 4mm; }
+  h1 { font-size: 8px; letter-spacing: 2px; }
+  .identity { margin: 5mm 0 6mm; font-size: 9px; }
+  .identity .session-label { font-size: 8px; }
+  .identity .session { font-size: 8px; }
+  .identity time { font-size: 8.5px; }
+  .item { margin-bottom: 5mm; }
+  .item h2 { padding: 2mm 0 1.5mm; font-size: 11.5px; gap: 2mm; }
+  dl { margin-top: 2mm; }
+  dt { padding-left: 2mm; }
+  .total { padding: 2.5mm 0; }
+  .total .caption { font-size: 7.5px; }
+  .total .sum { font-size: 20px; }
+  .meta, .cashier { font-size: 9px; }
+  .meta { margin-top: 4mm; }
+  .thanks { margin: 6mm 0 5mm; font-size: 12px; }
+  .fine-print { font-size: 8px; }
+  .notes { font-size: 8px; }
+}
+</style>
+</head>
+<body>
+<main class="receipt" aria-label="Codex session receipt">
+<header>
+<svg class="mark" viewBox="0 0 24 12" role="img" aria-label="Codex command prompt" xmlns="http://www.w3.org/2000/svg"><title>Codex command prompt</title><rect x="0" y="0" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="7" y="5" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/><rect x="5" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="4" y="8" width="1" height="1"/><rect x="5" y="8" width="1" height="1"/><rect x="2" y="9" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="14" y="9" width="1" height="1"/><rect x="15" y="9" width="1" height="1"/><rect x="16" y="9" width="1" height="1"/><rect x="17" y="9" width="1" height="1"/><rect x="18" y="9" width="1" height="1"/><rect x="19" y="9" width="1" height="1"/><rect x="20" y="9" width="1" height="1"/><rect x="21" y="9" width="1" height="1"/><rect x="22" y="9" width="1" height="1"/><rect x="23" y="9" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="2" y="10" width="1" height="1"/><rect x="3" y="10" width="1" height="1"/><rect x="14" y="10" width="1" height="1"/><rect x="15" y="10" width="1" height="1"/><rect x="16" y="10" width="1" height="1"/><rect x="17" y="10" width="1" height="1"/><rect x="18" y="10" width="1" height="1"/><rect x="19" y="10" width="1" height="1"/><rect x="20" y="10" width="1" height="1"/><rect x="21" y="10" width="1" height="1"/><rect x="22" y="10" width="1" height="1"/><rect x="23" y="10" width="1" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="1" y="11" width="1" height="1"/><rect x="2" y="11" width="1" height="1"/><rect x="14" y="11" width="1" height="1"/><rect x="15" y="11" width="1" height="1"/><rect x="16" y="11" width="1" height="1"/><rect x="17" y="11" width="1" height="1"/><rect x="18" y="11" width="1" height="1"/><rect x="19" y="11" width="1" height="1"/><rect x="20" y="11" width="1" height="1"/><rect x="21" y="11" width="1" height="1"/><rect x="22" y="11" width="1" height="1"/><rect x="23" y="11" width="1" height="1"/></svg>
+<h1>CODEX / RECEIPTS</h1>
+<div class="identity">
+<p>Project: codex-receipts</p>
+<p class="session-label">SESSION RECEIPT</p>
+<p class="session">019e0000-0000-7000-8000-000000000001</p>
+<time>2026-10-24 19:00:00 UTC</time>
+</div>
+</header>
+<section class="item" aria-label="GPT-5.3 Codex">
+<h2><span title="gpt-5.3-codex">GPT-5.3 Codex</span><span class="amount">$0.20</span></h2><dl><div><dt>Input (uncached)</dt><dd>14,891</dd></div><div><dt>Output tokens</dt><dd>12,304</dd></div><div><dt>Cache write</dt><dd>0</dd></div><div><dt>Cache read</dt><dd>28,000</dd></div></dl></section>
+<section class="item" aria-label="GPT-6.1 Sol">
+<h2><span title="gpt-6.1-sol">GPT-6.1 Sol</span><span class="amount">$0.51</span></h2><dl><div><dt>Input (uncached)</dt><dd>52,000</dd></div><div><dt>Output tokens</dt><dd>40,000</dd></div><div><dt>Cache write</dt><dd>0</dd></div><div><dt>Cache read</dt><dd>56,000</dd></div></dl></section>
+
+<section class="total" aria-label="Estimated API cost">
+<p class="caption">ESTIMATED API COST</p>
+<div class="sum"><span>TOTAL</span><span class="amount">$0.71</span></div>
+</section>
+<footer>
+<dl class="meta"><div><dt>Elapsed</dt><dd>3h 0m 0s</dd></div><div><dt>Active turns</dt><dd>0m 11s</dd></div></dl>
+<p class="cashier">CASHIER: Codex</p>
+<p class="thanks">Thank you for building!</p>
+<div class="fine-print" title="Standard short-context USD rates; excludes tools, cache writes, regional and service-tier premiums">
+<p>Standard short-context API estimate.</p>
+<p>Excludes premiums, tools &amp; extras.</p>
+<p>Not a subscription charge.</p>
+<p class="pricing"><a href="https://developers.openai.com/api/docs/pricing">OpenAI pricing</a> / 2026-10-24</p>
+</div>
+<div class="notes"></div>
+</footer>
+</main>
+</body>
+</html>

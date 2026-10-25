@@ -193,3 +193,116 @@ fn model_line_items_keep_cached_tokens_separate() {
     assert!(page.contains("<dt>Input (uncached)</dt><dd>14,891</dd>"));
     assert!(!page.contains("<pre>"));
 }
+
+#[test]
+fn narrow_text_receipt_matches_approved_snapshot() {
+    let receipt = parser::parse_reader(Cursor::new(FIXTURE)).unwrap();
+    assert_eq!(
+        ascii::render(&receipt, &Pricing::bundled().unwrap(), Paper::Mm58),
+        include_str!("../tests/fixtures/receipt-58.txt")
+    );
+}
+
+#[test]
+fn terminal_receipts_match_approved_snapshots_at_both_widths() {
+    let receipt = parser::parse_reader(Cursor::new(include_str!(
+        "../tests/fixtures/multi-model.jsonl"
+    )))
+    .unwrap();
+    let pricing = Pricing::bundled().unwrap();
+    for (paper, expected) in [
+        (
+            Paper::Mm58,
+            include_str!("../tests/fixtures/terminal-58.txt"),
+        ),
+        (
+            Paper::Mm80,
+            include_str!("../tests/fixtures/terminal-80.txt"),
+        ),
+    ] {
+        assert_eq!(
+            ascii::terminal(&receipt, &pricing, paper).replace('\u{1b}', "\\x1b"),
+            expected
+        );
+    }
+}
+
+#[test]
+fn printable_html_matches_approved_snapshots_at_both_widths() {
+    let receipt = parser::parse_reader(Cursor::new(include_str!(
+        "../tests/fixtures/multi-model.jsonl"
+    )))
+    .unwrap();
+    let pricing = Pricing::bundled().unwrap();
+    for (paper, expected) in [
+        (
+            Paper::Mm58,
+            include_str!("../tests/fixtures/receipt-58.html"),
+        ),
+        (
+            Paper::Mm80,
+            include_str!("../tests/fixtures/receipt-80.html"),
+        ),
+    ] {
+        assert_eq!(html::render(&receipt, &pricing, paper), expected);
+    }
+}
+
+#[test]
+fn empty_and_unpriced_receipts_show_na_instead_of_a_zero_total() {
+    let missing = parser::parse_reader(Cursor::new(FIXTURE.lines().next().unwrap())).unwrap();
+    let unknown = parser::parse_reader(Cursor::new(
+        FIXTURE.replace("gpt-5.3-codex", "future-model"),
+    ))
+    .unwrap();
+    let pricing = Pricing::bundled().unwrap();
+    for receipt in [missing, unknown] {
+        for paper in [Paper::Mm58, Paper::Mm80] {
+            let text = ascii::render(&receipt, &pricing, paper);
+            let page = html::render(&receipt, &pricing, paper);
+            assert!(text.contains("N/A"));
+            assert!(page.contains("<span class=\"amount\">N/A</span>"));
+            assert!(!text.contains("$0.00"));
+            assert!(!page.contains("$0.00"));
+        }
+    }
+}
+
+#[test]
+fn long_metadata_and_maximum_counts_preserve_data_without_overwide_text() {
+    let mut receipt = parser::parse_reader(Cursor::new(FIXTURE)).unwrap();
+    receipt.project = "a-very-long-project-name".repeat(8);
+    receipt.models[0].model = "gpt-6-astra".into();
+    let tokens = Tokens {
+        input_tokens: u64::MAX,
+        output_tokens: u64::MAX,
+        ..Tokens::default()
+    };
+    receipt.models[0].tokens = tokens;
+    receipt.total = Some(tokens);
+    let pricing = Pricing::bundled().unwrap();
+    for paper in [Paper::Mm58, Paper::Mm80] {
+        let text = ascii::render(&receipt, &pricing, paper);
+        let page = html::render(&receipt, &pricing, paper);
+        assert!(text.lines().all(|line| line.len() <= paper.columns()));
+        assert!(text.contains("18,446,744,073,709,551,615"));
+        assert!(page.contains("18,446,744,073,709,551,615"));
+        assert!(page.contains(&receipt.project));
+        assert!(page.contains(&money(pricing.total(&receipt))));
+    }
+}
+
+#[test]
+fn every_untrusted_receipt_field_is_escaped_in_html() {
+    let mut receipt = parser::parse_reader(Cursor::new(FIXTURE)).unwrap();
+    let markup = "<img src=x onerror=\"alert('x')\">&\u{1b}";
+    receipt.project = markup.into();
+    receipt.session_id = markup.into();
+    receipt.models[0].model = markup.into();
+    receipt.warnings.push(markup.into());
+    let page = html::render(&receipt, &Pricing::bundled().unwrap(), Paper::Mm58);
+    assert!(!page.contains("<img"));
+    assert!(!page.contains('\u{1b}'));
+    assert!(page.contains("&lt;img src=x onerror=&quot;alert(&#39;x&#39;)&quot;&gt;&amp;?"));
+    assert!(!page.contains("Synthetic private prompt"));
+}
