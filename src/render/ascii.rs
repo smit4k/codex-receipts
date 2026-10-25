@@ -53,11 +53,19 @@ impl Text {
     fn line(&mut self, value: &str, style: Style) {
         let text = safe_text(value);
         let mut rest = text.as_str();
-        while rest.len() > self.width {
-            let split = rest[..=self.width]
-                .rfind(' ')
-                .filter(|&i| i > 0)
-                .unwrap_or(self.width);
+        while rest.chars().count() > self.width {
+            let boundary = rest
+                .char_indices()
+                .nth(self.width)
+                .map_or(rest.len(), |(index, _)| index);
+            let split = if rest[boundary..].starts_with(' ') {
+                boundary
+            } else {
+                rest[..boundary]
+                    .rfind(' ')
+                    .filter(|&i| i > 0)
+                    .unwrap_or(boundary)
+            };
             self.lines.push(Line {
                 text: rest[..split].to_owned(),
                 style,
@@ -77,15 +85,16 @@ impl Text {
                 "{:padding$}{}",
                 "",
                 line.text,
-                padding = (self.width - line.text.len()) / 2
+                padding = (self.width - line.text.chars().count()) / 2
             );
         }
     }
     fn row(&mut self, left: &str, right: &str, style: Style) {
         let (left, right) = (safe_text(left), safe_text(right));
-        if left.len() + right.len() < self.width {
+        let left_width = left.chars().count();
+        if left_width + right.chars().count() < self.width {
             self.lines.push(Line {
-                text: format!("{left}{right:>padding$}", padding = self.width - left.len()),
+                text: format!("{left}{right:>padding$}", padding = self.width - left_width),
                 style,
             });
         } else {
@@ -114,10 +123,11 @@ pub fn lines(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> Vec<Line> {
     text.center("C O D E X  /  R E C E I P T S", Bold);
     text.space();
     if let Some(count) = receipt.session_count {
-        text.center("All projects", Normal);
-        text.center("PERIOD RECEIPT", Muted);
         text.center(
-            &format!("{count} session{}", if count == 1 { "" } else { "s" }),
+            &format!(
+                "All projects • {count} session{}",
+                if count == 1 { "" } else { "s" }
+            ),
             Normal,
         );
     } else {
@@ -175,26 +185,16 @@ pub fn lines(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> Vec<Line> {
         } else {
             "Elapsed"
         },
-        &duration(receipt.ended_at - receipt.started_at),
-        Normal,
-    );
-    text.row(
-        "Active turns",
-        &receipt
-            .active_duration
-            .map(duration)
-            .unwrap_or_else(|| "N/A".into()),
+        &if receipt.session_count.is_some() {
+            format!("{}d", (receipt.ended_at - receipt.started_at).num_days())
+        } else {
+            duration(receipt.ended_at - receipt.started_at)
+        },
         Normal,
     );
     text.line("CASHIER: Codex", Normal);
     text.space();
     text.center("Thank you for building!", Bold);
-    text.space();
-    text.center("Estimated API cost", Muted);
-    text.center("Standard short-context rates", Muted);
-    text.center("Excludes premiums, tools & extras", Muted);
-    text.center("Not a subscription charge", Muted);
-    text.center(&format!("Prices: {}", pricing.version), Muted);
     if pricing.is_partial(receipt) {
         text.space();
         text.line("* Partial total: known costs", Muted);

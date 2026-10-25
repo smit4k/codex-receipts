@@ -33,7 +33,7 @@ pub fn render(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> String {
         let suffix = if count == 1 { "" } else { "s" };
         (
             format!(
-                "<p>All projects</p>\n<p class=\"session-label\">PERIOD RECEIPT</p>\n<p class=\"session\">{count} session{suffix}</p>\n<time>{date}</time><p>to</p><time>{end}</time>"
+                "<p>All projects • {count} session{suffix}</p>\n<time>{date}</time><p>to</p><time>{end}</time>"
             ),
             "Codex period receipt",
             "Period",
@@ -47,11 +47,11 @@ pub fn render(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> String {
             "Elapsed",
         )
     };
-    let elapsed = duration(receipt.ended_at - receipt.started_at);
-    let active = receipt
-        .active_duration
-        .map(duration)
-        .unwrap_or_else(|| "N/A".into());
+    let elapsed = if receipt.session_count.is_some() {
+        format!("{}d", (receipt.ended_at - receipt.started_at).num_days())
+    } else {
+        duration(receipt.ended_at - receipt.started_at)
+    };
     let total = pricing.total_display(receipt);
     let total_size = if total.len() > 12 { 14 } else { 24 };
     let total_print_size = if total.len() > 12 {
@@ -59,9 +59,6 @@ pub fn render(receipt: &Receipt, pricing: &Pricing, paper: Paper) -> String {
     } else {
         20
     };
-    let source = escape(&pricing.source);
-    let basis = escape(&pricing.basis);
-    let version = escape(&pricing.version);
     let mut items = String::new();
     for usage in &receipt.models {
         let name = escape(&model_name(&usage.model));
@@ -174,10 +171,6 @@ footer {{ break-inside: avoid; }}
 .meta dt {{ padding: 0; }}
 .cashier {{ margin: 12px 0 0; font-size: 11px; }}
 .thanks {{ margin: 30px 0 25px; text-align: center; font-size: 14px; font-weight: 400; letter-spacing: -.45px; }}
-.fine-print {{ color: var(--muted); text-align: center; font-size: 9px; line-height: 1.65; letter-spacing: -.1px; }}
-.fine-print p {{ margin: 0; }}
-.fine-print a {{ color: inherit; text-decoration-thickness: .5px; text-underline-offset: 2px; }}
-.fine-print .pricing {{ margin-top: 8px; }}
 .notes {{ margin-top: 12px; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }}
 .notes:empty {{ display: none; }}
 .notes p {{ margin: 4px 0 0; }}
@@ -209,7 +202,6 @@ footer {{ break-inside: avoid; }}
   .meta, .cashier {{ font-size: 9px; }}
   .meta {{ margin-top: 4mm; }}
   .thanks {{ margin: 6mm 0 5mm; font-size: 12px; }}
-  .fine-print {{ font-size: 8px; }}
   .notes {{ font-size: 8px; }}
 }}
 </style>
@@ -229,15 +221,9 @@ footer {{ break-inside: avoid; }}
 <div class="sum"><span>TOTAL</span><span class="amount">{total}</span></div>
 </section>
 <footer>
-<dl class="meta"><div><dt>{elapsed_label}</dt><dd>{elapsed}</dd></div><div><dt>Active turns</dt><dd>{active}</dd></div></dl>
+<dl class="meta"><div><dt>{elapsed_label}</dt><dd>{elapsed}</dd></div></dl>
 <p class="cashier">CASHIER: Codex</p>
 <p class="thanks">Thank you for building!</p>
-<div class="fine-print" title="{basis}">
-<p>Standard short-context API estimate.</p>
-<p>Excludes premiums, tools &amp; extras.</p>
-<p>Not a subscription charge.</p>
-<p class="pricing"><a href="{source}">OpenAI pricing</a> / {version}</p>
-</div>
 <div class="notes">{notes}</div>
 </footer>
 </main>

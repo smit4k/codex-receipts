@@ -540,6 +540,54 @@ fn counter_corrections_before_the_period_only_update_its_baseline() {
 }
 
 #[test]
+fn period_receipts_combine_project_and_session_count_in_both_formats() {
+    let mut r = parser::parse_reader(Cursor::new(FIXTURE)).unwrap();
+    let pricing = Pricing::bundled().unwrap();
+    for count in [0, 1, 42, usize::MAX] {
+        r.session_count = Some(count);
+        let header = format!(
+            "All projects • {count} session{}",
+            if count == 1 { "" } else { "s" }
+        );
+        for paper in [Paper::Mm58, Paper::Mm80] {
+            let text = ascii::render(&r, &pricing, paper);
+            let page = html::render(&r, &pricing, paper);
+            assert!(!text.contains("PERIOD RECEIPT"));
+            assert!(!page.contains("PERIOD RECEIPT"));
+            assert!(
+                text.lines()
+                    .all(|line| line.chars().count() <= paper.columns())
+            );
+            if header.chars().count() <= paper.columns() {
+                assert!(text.lines().any(|line| line.trim() == header));
+            } else {
+                assert!(text.contains(&count.to_string()));
+            }
+            assert!(page.contains(&format!("<p>{header}</p>")));
+        }
+    }
+}
+
+#[test]
+fn period_receipts_display_days_at_both_widths_in_both_formats() {
+    let mut receipt = parser::parse_reader(Cursor::new(FIXTURE)).unwrap();
+    receipt.session_count = Some(1);
+    let pricing = Pricing::bundled().unwrap();
+    for days in [7, 28, 29, 30, 31] {
+        receipt.ended_at = receipt.started_at + chrono::Duration::days(days);
+        for paper in [Paper::Mm58, Paper::Mm80] {
+            let text = ascii::render(&receipt, &pricing, paper);
+            let page = html::render(&receipt, &pricing, paper);
+            assert!(text.lines().any(|line| {
+                line.starts_with("Period")
+                    && line.split_whitespace().last() == Some(format!("{days}d").as_str())
+            }));
+            assert!(page.contains(&format!("<dt>Period</dt><dd>{days}d</dd>")));
+        }
+    }
+}
+
+#[test]
 fn period_model_switches_preserve_attribution_and_open_turns_are_clipped() {
     let log = FIXTURE.replace("{\"timestamp\":\"2026-10-24T19:00:10Z\"", "{\"type\":\"turn_context\",\"payload\":{\"model\":\"gpt-6.1-sol\"}}\n{\"timestamp\":\"2026-10-24T19:00:10Z\"");
     let log = log
@@ -577,17 +625,4 @@ fn combining_model_usage_rejects_token_overflow() {
         )
         .is_err()
     );
-}
-
-#[test]
-fn a_period_receipt_with_one_session_renders_its_count_in_both_formats() {
-    let mut r = parser::parse_reader(Cursor::new(FIXTURE)).unwrap();
-    r.session_count = Some(1);
-    let pricing = Pricing::bundled().unwrap();
-    assert!(
-        ascii::render(&r, &pricing, Paper::Mm58)
-            .lines()
-            .any(|line| line.trim() == "1 session")
-    );
-    assert!(html::render(&r, &pricing, Paper::Mm58).contains(">1 session</p>"));
 }

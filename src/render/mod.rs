@@ -32,7 +32,7 @@ pub fn safe_text(value: &str) -> String {
     value
         .chars()
         .map(|c| {
-            if c.is_ascii_graphic() || c == ' ' {
+            if c.is_ascii_graphic() || c == ' ' || c == '•' {
                 c
             } else {
                 '?'

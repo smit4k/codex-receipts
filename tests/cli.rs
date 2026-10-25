@@ -341,7 +341,8 @@ fn period_receipts_combine_models_and_resumed_sessions_in_text_and_html() {
             let output = cli(&["--sessions-dir", root, "--period", period, "--paper", paper]);
             ok(&output);
             let text = String::from_utf8(output.stdout).unwrap();
-            assert!(text.contains("PERIOD RECEIPT"));
+            assert!(!text.contains("PERIOD RECEIPT"));
+            assert!(text.contains(&format!("All projects • {sessions} sessions")));
             assert!(text.contains(&format!("{sessions} sessions")));
             assert!(text.contains("43,873"));
             assert!(text.contains("83,800"));

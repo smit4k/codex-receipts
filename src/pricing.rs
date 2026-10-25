@@ -5,9 +5,6 @@ use std::collections::BTreeMap;
 
 #[derive(Deserialize)]
 pub struct Pricing {
-    pub version: String,
-    pub source: String,
-    pub basis: String,
     pub models: BTreeMap<String, Rate>,
 }
 

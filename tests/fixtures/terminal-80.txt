@@ -31,14 +31,7 @@
 \x1b[2m==========================================\x1b[0m
 \x1b[0m\x1b[0m
 \x1b[0mElapsed                           3h 0m 0s\x1b[0m
-\x1b[0mActive turns                        0m 11s\x1b[0m
 \x1b[0mCASHIER: Codex\x1b[0m
 \x1b[0m\x1b[0m
 \x1b[1m         Thank you for building!\x1b[0m
-\x1b[0m\x1b[0m
-\x1b[2m            Estimated API cost\x1b[0m
-\x1b[2m       Standard short-context rates\x1b[0m
-\x1b[2m    Excludes premiums, tools & extras\x1b[0m
-\x1b[2m        Not a subscription charge\x1b[0m
-\x1b[2m            Prices: 2026-10-24\x1b[0m
 \x1b[0m\x1b[0m

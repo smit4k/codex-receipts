@@ -24,15 +24,7 @@ TOTAL (API EST.)           $0.20
 ================================
 
 Elapsed                 3h 0m 0s
-Active turns              0m 11s
 CASHIER: Codex
 
     Thank you for building!
-
-       Estimated API cost
-  Standard short-context rates
-   Excludes premiums, tools &
-             extras
-   Not a subscription charge
-       Prices: 2026-10-24
 
