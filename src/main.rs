@@ -162,6 +162,10 @@ fn run(cli: Cli) -> Result<()> {
             format,
             output: path,
         }) => {
+            let path = path.unwrap_or_else(|| match format {
+                Format::Text => PathBuf::from("receipt.txt"),
+                Format::Html => PathBuf::from("receipt.html"),
+            });
             let text = match format {
                 Format::Text => ascii::render(&receipt, &pricing, cli.paper),
                 Format::Html => html::render(&receipt, &pricing, cli.paper),

@@ -71,6 +71,41 @@ fn exports_all_formats_and_refuses_to_overwrite() {
 }
 
 #[test]
+fn exports_default_to_files_in_the_working_directory_without_overwriting() {
+    for (options, filename) in [
+        (vec![], "receipt.html"),
+        (vec!["--format", "html"], "receipt.html"),
+        (vec!["--format", "text"], "receipt.txt"),
+        (vec!["--format", "ascii"], "receipt.txt"),
+        (vec!["-o", "custom.html"], "custom.html"),
+    ] {
+        let dir = Temp::new();
+        fs::create_dir(dir.0.join("sessions")).unwrap();
+        fs::copy(fixture(), dir.0.join("sessions/rollout.jsonl")).unwrap();
+        let mut command = Command::new(env!("CARGO_BIN_EXE_codex-receipts"));
+        command
+            .current_dir(&dir.0)
+            .env("CODEX_HOME", &dir.0)
+            .arg("export")
+            .args(options);
+        let output = command.output().unwrap();
+        ok(&output);
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains(&format!("Saved {filename}")));
+        let bytes = fs::read(dir.0.join(filename)).unwrap();
+        if filename.ends_with(".html") {
+            assert!(bytes.starts_with(b"<!doctype html>"));
+        } else {
+            assert!(String::from_utf8_lossy(&bytes).contains("TOTAL (API EST.)"));
+        }
+        let duplicate = command.output().unwrap();
+        assert!(!duplicate.status.success());
+        assert!(String::from_utf8_lossy(&duplicate.stderr).contains("not overwritten"));
+        assert_eq!(fs::read(dir.0.join(filename)).unwrap(), bytes);
+    }
+}
+
+#[test]
 fn discovers_nested_sessions_and_selects_unique_ids() {
     let dir = Temp::new();
     let nested = dir.0.join("2026/10/24");

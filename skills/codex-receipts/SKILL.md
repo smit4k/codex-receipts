@@ -13,15 +13,15 @@ Examples:
 
 ```sh
 codex-receipts --file /absolute/path/to/rollout.jsonl
-codex-receipts export --session SESSION_ID --format html -o receipt.html
-codex-receipts export --session SESSION_ID --format html --paper 58 -o receipt-58.html
+codex-receipts export --session SESSION_ID
+codex-receipts export --session SESSION_ID --paper 58 -o receipt-58.html
 codex-receipts --period week
-codex-receipts export --period month --format html -o month.html
+codex-receipts export --period month -o month.html
 codex-receipts print --period week
 ```
 
 When the user asks to print, use `codex-receipts print` with the same session or period selector and optional `--paper 58`. It opens a native receipt window and print dialog; the user chooses print or cancel and closes the receipt window when finished. A graphical desktop and the platform WebView runtime are required.
 
-Exports refuse to overwrite existing files. Select another filename if needed. Return a link to the exported file.
+Exports default to HTML in `receipt.html` in the current working directory. `--format text` (or `ascii`) defaults to `receipt.txt`; `-o PATH` overrides the filename and `-o -` writes to stdout. Exports refuse to overwrite existing files. Select another filename if needed. Return a link to the exported file.
 
 Describe costs as standard-rate API estimates. Free `codex-auto-review` safety calls are excluded. Unknown models and cache-write usage produce `N/A` on model rows; totals sum known costs and add `*` for unavailable costs or usage, with `$0.00*` when none are known. The estimate excludes context/service premiums and tool fees and does not measure a ChatGPT subscription charge. An open session receipt is a snapshot. Receipts include a project basename and session ID, but no prompts, tool output, or full working directory.

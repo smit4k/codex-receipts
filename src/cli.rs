@@ -9,7 +9,7 @@ use std::{ops::Range, path::PathBuf};
     version,
     about = "A receipt for your Codex sessions.",
     before_help = "CODEX / RECEIPTS",
-    after_help = "Try it:\n  codex-receipts\n  codex-receipts --period week\n  codex-receipts print --period week\n  codex-receipts export --period month --format html -o month.html"
+    after_help = "Try it:\n  codex-receipts\n  codex-receipts --period week\n  codex-receipts print --period week\n  codex-receipts export\n  codex-receipts export --period month -o month.html"
 )]
 pub struct Cli {
     /// Override $CODEX_HOME/sessions or ~/.codex/sessions
@@ -70,9 +70,9 @@ pub enum Command {
     Export {
         #[arg(long, value_enum, default_value = "html")]
         format: Format,
-        /// Output file, or - for stdout
+        /// Output file (default: ./receipt.html, or ./receipt.txt for text), or - for stdout
         #[arg(short, long)]
-        output: PathBuf,
+        output: Option<PathBuf>,
     },
     /// Read a Codex SessionEnd JSON event from stdin and export HTML
     Hook {
