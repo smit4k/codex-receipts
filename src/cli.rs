@@ -68,7 +68,7 @@ pub enum Command {
     Print,
     /// Export a receipt; existing files are never overwritten
     Export {
-        #[arg(long, value_enum, default_value = "text")]
+        #[arg(long, value_enum, default_value = "html")]
         format: Format,
         /// Output file, or - for stdout
         #[arg(short, long)]

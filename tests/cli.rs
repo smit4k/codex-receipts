@@ -206,8 +206,6 @@ fn text_alias_and_stdout_exports_match_the_requested_format() {
             fixture().to_str().unwrap(),
             "--paper",
             paper,
-            "--format",
-            "html",
             "-o",
             "-",
         ]);
